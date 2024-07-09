@@ -1,0 +1,28 @@
+[package]
+name = "egui-resources"
+version = "0.1.0" # change with html_root_url in lib.rs
+edition = "2021"
+authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
+
+description = "egui resources for Rust"
+keywords = ["egui", "resources", "polars", "plotters", "gui"]
+categories = ["gui", "visualization", "development-tools", "games", "graphics"]
+license = "MIT"
+
+documentation = "https://docs.rs/egui-resources/"
+homepage = "https://crates.io/crates/egui-resources"
+repository = "https://github.com/nomissbowling/egui-resources"
+
+readme = "README.md"
+
+#build = "build.rs"
+
+[lib]
+name = "egui_resources"
+
+[dependencies]
+half = { version = "=2.2.1" } # (for image) 2.4.1
+image = { version = "=0.24.6", features = ["png", "jpeg"] } # 0.25.1
+
+egui = { version = "=0.21.0" } # 0.27.2
+eframe = { version = "=0.21.0", features = ["persistence"] } # 0.27.2

@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/egui-resources/0.2.0")]
+#![doc(html_root_url = "https://docs.rs/egui-resources/0.2.1")]
 //! egui resources
 //!
 //! https://github.com/google/fonts/blob/main/ofl/firasans/FiraSans-Regular.ttf
@@ -11,21 +11,33 @@ use image::{load_from_memory, DynamicImage, RgbaImage};
 use image::imageops::FilterType;
 use eframe::{self, egui::*};
 
-/// create resized copy
+/// create DynamicImage from ColorImage
+/// - src: &amp;ColorImage
+/// - result: DynamicImage
+pub fn dynamic_image_from(src: &ColorImage) -> DynamicImage {
+  let (sw, sh) = (src.width(), src.height());
+unsafe {
+  let p = &src.pixels[0] as *const Color32 as *const u8; // pointer
+  let s = std::slice::from_raw_parts(p, sw * sh * 4); // 4 for Color32
+  DynamicImage::from(
+    // RgbaImage is an alias of ImageBuffer
+    match RgbaImage::from_raw(sw as u32, sh as u32, s.to_vec()) {
+    None => RgbaImage::new(sw as u32, sh as u32),
+    Some(b) => b
+    }
+  )
+}
+}
+
+/// create resized copy from ColorImage
 /// - wh: [usize; 2] (to be resized)
 /// - src: &amp;ColorImage
 /// - filter: image::imageops::FilterType (Nearest, Lanczos3, etc)
 /// - result: ColorImage
 pub fn resized_copy_from(wh: [usize; 2], src: &ColorImage,
   filter: FilterType) -> ColorImage {
-  let (sw, sh) = (src.width(), src.height());
-  let img = (unsafe {
-    let p = &src.pixels[0] as *const Color32 as *const u8; // pointer
-    let s = std::slice::from_raw_parts(p, sw * sh * 4); // 4 for Color32
-    let b = RgbaImage::from_raw(sw as u32, sh as u32, s.to_vec());
-    // RgbaImage is an alias of ImageBuffer
-    DynamicImage::from(b.expect("ImageBuffer"))
-  }).resize_to_fill(wh[0] as u32, wh[1] as u32, filter);
+  let img = dynamic_image_from(src)
+    .resize_to_fill(wh[0] as u32, wh[1] as u32, filter);
   // always should use resize_to_fill for any aspect
   ColorImage::from_rgba_unmultiplied(wh, &img.into_rgba8().into_raw())
 }
@@ -44,6 +56,15 @@ macro_rules! im_flat {
 }
 // pub use im_flat;
 
+/// create ColorImage from DynamicImage
+/// - src: DynamicImage (move)
+/// - result: ColorImage
+pub fn color_image_from_dynamic_image(src: DynamicImage) -> ColorImage {
+  let (rgba, width, height) = im_flat!(src);
+  ColorImage::from_rgba_unmultiplied(
+    [width as usize, height as usize], &rgba)
+}
+
 /// load resource img
 /// - f: &amp;str filename
 /// - p: bool (true: ./resources false: full path)
@@ -51,9 +72,7 @@ macro_rules! im_flat {
 pub fn resource_img(f: &str, p: bool) -> ColorImage {
   let Ok(b) = read_bytes(f, p) else { return ColorImage::example(); };
   if let Ok(img) = load_from_memory(&b) {
-    let (rgba, width, height) = im_flat!(img);
-    ColorImage::from_rgba_unmultiplied(
-      [width as usize, height as usize], &rgba)
+    color_image_from_dynamic_image(img)
   }else{
     ColorImage::example()
   }

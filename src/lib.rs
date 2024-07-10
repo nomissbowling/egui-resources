@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/egui-resources/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/egui-resources/0.2.0")]
 //! egui resources
 //!
 //! https://github.com/google/fonts/blob/main/ofl/firasans/FiraSans-Regular.ttf
@@ -7,8 +7,28 @@
 use std::error::Error;
 use std::fs;
 use std::io::Read;
-use image::load_from_memory;
+use image::{load_from_memory, DynamicImage, RgbaImage};
+use image::imageops::FilterType;
 use eframe::{self, egui::*};
+
+/// create resized copy
+/// - wh: [usize; 2] (to be resized)
+/// - src: &amp;ColorImage
+/// - filter: image::imageops::FilterType (Nearest, Lanczos3, etc)
+/// - result: ColorImage
+pub fn resized_copy_from(wh: [usize; 2], src: &ColorImage,
+  filter: FilterType) -> ColorImage {
+  let (sw, sh) = (src.width(), src.height());
+  let img = (unsafe {
+    let p = &src.pixels[0] as *const Color32 as *const u8; // pointer
+    let s = std::slice::from_raw_parts(p, sw * sh * 4); // 4 for Color32
+    let b = RgbaImage::from_raw(sw as u32, sh as u32, s.to_vec());
+    // RgbaImage is an alias of ImageBuffer
+    DynamicImage::from(b.expect("ImageBuffer"))
+  }).resize_to_fill(wh[0] as u32, wh[1] as u32, filter);
+  // always should use resize_to_fill for any aspect
+  ColorImage::from_rgba_unmultiplied(wh, &img.into_rgba8().into_raw())
+}
 
 /// macro im_flat
 /// - img: image::DynamicImage
@@ -70,7 +90,7 @@ pub fn resource_font(fonts: &mut FontDefinitions,
 }
 
 /// reg fonts
-/// - ffs: Vec&gt; (name, filename, family) &lt; (move)
+/// - ffs: Vec&lt; (name, filename, family) &gt; (move)
 /// - result: FontDefinitions
 pub fn reg_fonts(ffs: Vec<(&str, &str, FontFamily)>) -> FontDefinitions {
   let mut fonts = FontDefinitions::default();
@@ -111,5 +131,16 @@ mod tests {
     assert_eq!(im.size, [4, 4]);
     assert_eq!(im.pixels.len(), 16);
     assert_eq!(im.pixels, flat);
+
+    let resized = vec![
+      [255, 0, 0, 255], [0, 255, 0, 255],
+      [0, 0, 255, 255], [255, 255, 0, 255]
+    ].into_iter().map(|c|
+      Color32::from_rgba_premultiplied(c[0], c[1], c[2], c[3]) // unmultiplied
+    ).collect::<Vec<_>>();
+    let img = resized_copy_from([2, 2], &im, FilterType::Nearest);
+    assert_eq!(img.size, [2, 2]);
+    assert_eq!(img.pixels.len(), 4);
+    assert_eq!(img.pixels, resized);
   }
 }

@@ -8,6 +8,14 @@ egui resources for Rust
 - [https://github.com/nomissbowling/egui-resources](https://github.com/nomissbowling/egui-resources)
 
 
+Requirements
+------------
+
+- [https://crates.io/crates/image](https://crates.io/crates/image)
+- [https://crates.io/crates/egui](https://crates.io/crates/egui)
+- [https://crates.io/crates/eframe](https://crates.io/crates/eframe)
+
+
 License
 -------
 

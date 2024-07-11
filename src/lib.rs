@@ -1,11 +1,11 @@
-#![doc(html_root_url = "https://docs.rs/egui-resources/0.2.1")]
+#![doc(html_root_url = "https://docs.rs/egui-resources/0.3.0")]
 //! egui resources
 //!
 //! https://github.com/google/fonts/blob/main/ofl/firasans/FiraSans-Regular.ttf
 //!
 
 use std::error::Error;
-use std::fs;
+use std::{fs, path::PathBuf};
 use std::io::Read;
 use image::{load_from_memory, DynamicImage, RgbaImage};
 use image::imageops::FilterType;
@@ -39,7 +39,8 @@ pub fn resized_copy_from(wh: [usize; 2], src: &ColorImage,
   let img = dynamic_image_from(src)
     .resize_to_fill(wh[0] as u32, wh[1] as u32, filter);
   // always should use resize_to_fill for any aspect
-  ColorImage::from_rgba_unmultiplied(wh, &img.into_rgba8().into_raw())
+  color_image_from_dynamic_image(img)
+  // ColorImage::from_rgba_unmultiplied(wh, &img.into_rgba8().into_raw())
 }
 
 /// macro im_flat
@@ -65,69 +66,88 @@ pub fn color_image_from_dynamic_image(src: DynamicImage) -> ColorImage {
     [width as usize, height as usize], &rgba)
 }
 
-/// load resource img
-/// - f: &amp;str filename
-/// - p: bool (true: ./resources false: full path)
-/// - result: ColorImage
-pub fn resource_img(f: &str, p: bool) -> ColorImage {
-  let Ok(b) = read_bytes(f, p) else { return ColorImage::example(); };
-  if let Ok(img) = load_from_memory(&b) {
-    color_image_from_dynamic_image(img)
-  }else{
-    ColorImage::example()
+/// ResourceBase
+pub struct ResourcesBase {
+  /// base path
+  pub basepath: PathBuf
+}
+
+/// ResourcesBase
+impl ResourcesBase {
+  /// constructor
+  /// - basepath: PathBuf base path (move)
+  pub fn new(basepath: PathBuf) -> Self {
+    ResourcesBase{basepath}
   }
-}
 
-/// load resource icon
-/// - ico: &amp;str filename
-/// - result: Option eframe::IconData
-pub fn resource_icon(ico: &str) -> Option<eframe::IconData> {
-  let Ok(b) = read_bytes(ico, true) else { return None; };
-  if let Ok(img) = load_from_memory(&b) {
-    let (rgba, width, height) = im_flat!(img);
-    Some(eframe::IconData{rgba, width, height})
-  }else{
-    None
+  /// load resource img
+  /// - f: &amp;str filename
+  /// - p: bool (true: self.basepath false: full path)
+  /// - result: ColorImage
+  pub fn resource_img(&self, f: &str, p: bool) -> ColorImage {
+    let Ok(b) = self.read_bytes(f, p) else { return ColorImage::example(); };
+    if let Ok(img) = load_from_memory(&b) {
+      color_image_from_dynamic_image(img)
+    }else{
+      ColorImage::example()
+    }
   }
-}
 
-/// load resource font
-/// - fonts: &amp;mut FontDefinitions
-/// - n: &amp;str name
-/// - f: &amp;str filename
-/// - t: FontFamily family (move)
-/// - result: ()
-pub fn resource_font(fonts: &mut FontDefinitions,
-  n: &str, f: &str, t: FontFamily) {
-  let Ok(b) = read_bytes(f, true) else { return; };
-  let n = n.to_string();
-  let m = n.clone();
-  fonts.font_data.insert(n, FontData::from_owned(b));
-  // fonts.font_data.insert(n, FontData::from_static(include_bytes!(
-  //   "static str path from src extended and read at the compile time")));
-  fonts.families.entry(t).or_default().insert(0, m);
-}
+  /// load resource icon
+  /// - ico: &amp;str filename
+  /// - result: Option eframe::IconData
+  pub fn resource_icon(&self, ico: &str) -> Option<eframe::IconData> {
+    let Ok(b) = self.read_bytes(ico, true) else { return None; };
+    if let Ok(img) = load_from_memory(&b) {
+      let (rgba, width, height) = im_flat!(img);
+      Some(eframe::IconData{rgba, width, height})
+    }else{
+      None
+    }
+  }
 
-/// reg fonts
-/// - ffs: Vec&lt; (name, filename, family) &gt; (move)
-/// - result: FontDefinitions
-pub fn reg_fonts(ffs: Vec<(&str, &str, FontFamily)>) -> FontDefinitions {
-  let mut fonts = FontDefinitions::default();
-  for (n, f, t) in ffs.into_iter() { resource_font(&mut fonts, n, f, t); }
-  fonts
-}
+  /// load resource font
+  /// - fonts: &amp;mut FontDefinitions
+  /// - n: &amp;str name
+  /// - f: &amp;str filename
+  /// - t: FontFamily family (move)
+  /// - result: ()
+  pub fn resource_font(&self, fonts: &mut FontDefinitions,
+    n: &str, f: &str, t: FontFamily) {
+    let Ok(b) = self.read_bytes(f, true) else { return; };
+    let n = n.to_string();
+    let m = n.clone();
+    fonts.font_data.insert(n, FontData::from_owned(b));
+    // fonts.font_data.insert(n, FontData::from_static(include_bytes!(
+    //   "static str path from src extended and read at the compile time")));
+    fonts.families.entry(t).or_default().insert(0, m);
+  }
 
-/// read bytes
-/// - f: &amp;str filename
-/// - p: bool (true: ./resources false: full path)
-/// - result: Result Vec u8
-pub fn read_bytes(f: &str, p: bool) -> Result<Vec<u8>, Box<dyn Error>> {
-  let p = if !p { f.to_string() } else { format!("./resources/{}", f) };
-  let mut fi = fs::File::open(&p)?;
-  let metadata = fs::metadata(&p)?;
-  let mut buf = vec![0u8; metadata.len() as usize];
-  fi.read(&mut buf)?;
-  Ok(buf)
+  /// reg fonts
+  /// - ffs: Vec&lt; (name, filename, family) &gt; (move)
+  /// - result: FontDefinitions
+  pub fn reg_fonts(&self, ffs: Vec<(&str, &str, FontFamily)>) ->
+    FontDefinitions {
+    let mut fonts = FontDefinitions::default();
+    for (n, f, t) in ffs.into_iter() {
+      self.resource_font(&mut fonts, n, f, t);
+    }
+    fonts
+  }
+
+  /// read bytes
+  /// - f: &amp;str filename
+  /// - p: bool (true: self.basepath false: full path)
+  /// - result: Result Vec u8
+  pub fn read_bytes(&self, f: &str, p: bool) ->
+    Result<Vec<u8>, Box<dyn Error>> {
+    let p = if !p { PathBuf::from(f) } else { self.basepath.join(f) };
+    let mut fi = fs::File::open(&p)?;
+    let metadata = fs::metadata(&p)?;
+    let mut buf = vec![0u8; metadata.len() as usize];
+    fi.read(&mut buf)?;
+    Ok(buf)
+  }
 }
 
 /// tests
@@ -138,6 +158,7 @@ mod tests {
   /// [-- --nocapture] [-- --show-output]
   #[test]
   fn test_resources() {
+    let bp = ResourcesBase::new(PathBuf::from("./resources"));
     let flat = vec![
 [255, 0, 0, 255], [255, 0, 0, 255], [0, 255, 0, 255], [0, 255, 0, 255],
 [255, 0, 0, 255], [255, 0, 0, 255], [0, 255, 0, 255], [0, 255, 0, 255],
@@ -146,7 +167,7 @@ mod tests {
     ].into_iter().map(|c|
       Color32::from_rgba_premultiplied(c[0], c[1], c[2], c[3]) // unmultiplied
     ).collect::<Vec<_>>();
-    let im = resource_img("_4c_4x4.png", true);
+    let im = bp.resource_img("_4c_4x4.png", true);
     assert_eq!(im.size, [4, 4]);
     assert_eq!(im.pixels.len(), 16);
     assert_eq!(im.pixels, flat);

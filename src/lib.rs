@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/egui-resources/0.3.0")]
+#![doc(html_root_url = "https://docs.rs/egui-resources/0.4.0")]
 //! egui resources
 //!
 //! https://github.com/google/fonts/blob/main/ofl/firasans/FiraSans-Regular.ttf
@@ -95,9 +95,10 @@ impl ResourcesBase {
 
   /// load resource icon
   /// - ico: &amp;str filename
+  /// - p: bool (true: self.basepath false: full path)
   /// - result: Option eframe::IconData
-  pub fn resource_icon(&self, ico: &str) -> Option<eframe::IconData> {
-    let Ok(b) = self.read_bytes(ico, true) else { return None; };
+  pub fn resource_icon(&self, ico: &str, p: bool) -> Option<eframe::IconData> {
+    let Ok(b) = self.read_bytes(ico, p) else { return None; };
     if let Ok(img) = load_from_memory(&b) {
       let (rgba, width, height) = im_flat!(img);
       Some(eframe::IconData{rgba, width, height})
@@ -111,10 +112,11 @@ impl ResourcesBase {
   /// - n: &amp;str name
   /// - f: &amp;str filename
   /// - t: FontFamily family (move)
+  /// - p: bool (true: self.basepath false: full path)
   /// - result: ()
   pub fn resource_font(&self, fonts: &mut FontDefinitions,
-    n: &str, f: &str, t: FontFamily) {
-    let Ok(b) = self.read_bytes(f, true) else { return; };
+    n: &str, f: &str, t: FontFamily, p: bool) {
+    let Ok(b) = self.read_bytes(f, p) else { return; };
     let n = n.to_string();
     let m = n.clone();
     fonts.font_data.insert(n, FontData::from_owned(b));
@@ -130,7 +132,7 @@ impl ResourcesBase {
     FontDefinitions {
     let mut fonts = FontDefinitions::default();
     for (n, f, t) in ffs.into_iter() {
-      self.resource_font(&mut fonts, n, f, t);
+      self.resource_font(&mut fonts, n, f, t, !f.contains("/"));
     }
     fonts
   }
